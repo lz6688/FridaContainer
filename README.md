@@ -13,7 +13,7 @@ npm build 后，用 Pycharm 打开编辑，可以看到 frida api 代码补全�
 使用 index.ts 入口方式可以按照以下方式编译和调用。
 
 ```sh
-$ git clone https://github.com/deathmemory/FridaContainer.git
+$ git clone https://github.com/lz6688/FridaContainer.git
 $ cd FridaContainer/
 $ npm install
 ## after edit index.ts
