@@ -8,6 +8,8 @@
 const fridaUnpack = require('./android/unpack/fridaUnpack');
 const yang_dumpdex = require('./android/yang/dump_dex');
 const yang_dumpdexclass = require('./android/yang/dump_dex_class');
+const hookerclick = require('./android/hooker/js/click')
+
 import {Anti} from "./android/Anti";
 import {Jni} from "./android/jnimgr";
 import {FCCommon} from "./FCCommon";
@@ -189,6 +191,14 @@ export namespace FCAnd {
 
     export function yang_dump_dex_class() {
         yang_dumpdexclass.dump_dex_class();
+    }
+
+    /**
+     * 勾住安卓点击事件
+     * 
+     */
+    export function hooker_click() {
+        hookerclick.hooker_click();
     }
 
     /**
