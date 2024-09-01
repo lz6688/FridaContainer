@@ -171,22 +171,175 @@ export namespace Anti {
         }
     }
 
+    // export function anti_JNI_OnLoad(soname:string,offset:any){
+    //     var base = Process.findModuleByName(soname);
+    //     Interceptor.attach(base?.add(offset),{
+    //         onEnter(args){
+    //             //如果调用了该函数就输出一行日志，如果没有日志输出，那么就说明检测点在该函数之前
+    //             DMLog.i('anti_JNI_OnLoad','call JNI_OnLoad')
+    //         }
+    //     })
+    // }
+
+
+    /**
+     * 用于看so调用的pthread_create时的参数
+     * 
+     * 
+     * @param soname 要查看的so库
+     */
+    export function anti_pthread_args(soname:string){
+        var libcModule:any = Process.findModuleByName('libc.so');
+        if (libcModule) {
+            var pthread_create = new NativeFunction(
+                libcModule.findExportByName('pthread_create'),
+                'int', ['pointer', 'pointer', 'pointer', 'pointer']
+            );
+            Interceptor.attach(pthread_create, {
+                onEnter: function (args:any) {
+                    var libModule:any = Process.findModuleByName(soname);
+                    if (libModule) {
+                        // 在进入 pthread_create 之前
+                        DMLog.i("anti_pthread_args","pthread_create called with arguments:");
+                        DMLog.i("anti_pthread_args","attr:" + args[0]);
+                        DMLog.i("anti_pthread_args","attr:" + (args[0] - libModule.base).toString(16));
+                        DMLog.i("anti_pthread_args","start_routine:" + args[1]);
+                        DMLog.i("anti_pthread_args","arg:" + args[2]);
+                        DMLog.i("anti_pthread_args","function at=>0x" + (args[2] - libModule.base).toString(16));
+                        DMLog.i("anti_pthread_args","pid:" + args[3]);
+                    }
+                },
+                onLeave: function (retval) {
+                    // 在离开 pthread_create 之后
+                    DMLog.i("anti_pthread_args","pthread_create returned:" + retval);
+                    if (retval.toInt32() === 0) {
+                        DMLog.i("anti_pthread_args","Thread created successfully!");
+                    } else {
+                        DMLog.i("anti_pthread_args","Thread creation failed!");
+                    }
+                }
+            });
+        }
+    }
+    
+    /**
+     * 用于看加载哪个so时崩溃的以及是否是在JNI_OnLoad前调用
+     * 
+     * 
+     * @param soname 判断该so库是否调用过JNI_OnLoad 默认为null
+     * @param offset do_dlopen 偏移地址 可用 readelf -sW  linker64 | grep do_dlopen 获取出来
+     */
+    export function anti_dlopen(soname:string = "null",offset:string){
+        if (Process.pointerSize == 4) {
+            var linker_base_addr = Module.getBaseAddress('linker');
+        }else if(Process.pointerSize == 8){
+            var linker_base_addr = Module.getBaseAddress('linker64')
+        }
+        // 偏移地址可用 readelf -sW  linker64 | grep do_dlopen 获取出来
+        // let offset = 0xba6c // __dl__Z9do_dlopenPKciPK17android_dlextinfoPKv
+        let android_dlopen_ext = linker_base_addr!.add(offset)
+        Interceptor.attach(android_dlopen_ext, {
+            onEnter: function(args){
+                this.name = args[0].readCString()
+                DMLog.i('anti_dlopen',`dlopen onEnter ${this.name}`)
+            }, 
+            onLeave: function(retval){
+                DMLog.i('anti_dlopen',`dlopen onLeave name: ${this.name}`)
+                try {
+                    if (this.name != null && this.name.indexOf(soname) >= 0) {
+                        let JNI_OnLoad = Module.getExportByName(this.name, 'JNI_OnLoad')
+                        DMLog.i('anti_dlopen',`dlopen onLeave JNI_OnLoad: ${JNI_OnLoad}`)
+                    }
+                } catch (error) {}
+            }
+        })
+    }
+    
+    /**
+     * 用于查看init_array调用
+     * 
+     */
+    export function anti_init_array() {
+        DMLog.i("anti_init_array",String(Process.pointerSize))
+        //console.log("hook_constructor",Process.pointerSize);
+        if (Process.pointerSize == 4) {
+            var linker = Process.findModuleByName("linker");
+        }else if (Process.pointerSize == 8) {
+            var linker = Process.findModuleByName("linker64");
+
+        }
+    
+        var addr_call_array = null;
+        if (linker!) {
+            var symbols = linker.enumerateSymbols();
+            for (var i = 0; i < symbols.length; i++) {
+                var name = symbols[i].name;
+                if (name.indexOf("call_array") >= 0) {
+                    addr_call_array = symbols[i].address;
+                }
+            }
+        }
+        if (addr_call_array) {
+            Interceptor.attach(addr_call_array, {
+                onEnter: function (args:any) {
+                    this.type = ptr(args[0]).readCString();
+                    //console.log(this.type,args[1],args[2],args[3])
+                    if (this.type == "DT_INIT_ARRAY") {
+                        this.count = args[2];
+                        //this.addrArray = new Array(this.count);
+                        this.path = ptr(args[3]).readCString();
+                        var strs = new Array(); //定义一数组 
+                        strs = this.path.split("/"); //字符分割
+                        this.filename = strs.pop();
+                        if(this.count > 0){
+                            DMLog.i("anti_init_array","path : " + this.path);
+                            DMLog.i("anti_init_array","filename : " + this.filename);
+                        }
+                        for (var i = 0; i < this.count; i++) {
+                            var base:any = Module.findBaseAddress(this.filename)
+                            DMLog.i("anti_init_array","offset : init_array["+i+"] = " + ptr(args[1]).add(Process.pointerSize*i).readPointer().sub(base));
+                            //插入hook init_array代码
+                        }
+                    }
+                },
+                onLeave: function (retval) {
+                }
+            });
+        }
+    }
+
+    export function anti_mmap(){
+        const mmap = Module.getExportByName("libc.so", "mmap");
+        Interceptor.attach(mmap, {
+            onEnter: function (args) {
+            let length = args[1].toString(16)
+            if (parseInt(length, 16) == 84) {
+                console.log('backtrace:\n' + Thread.backtrace(this.context, Backtracer.FUZZY)
+                                                        .map(DebugSymbol.fromAddress).join('\n') + '\n');
+            }
+            }
+        })
+    }
+
     /**
      * 适用于每日优鲜的反调试
      */
-    export function anti_fork() {
+    export function anti_fork(type:string = 'replace') {
         var fork_addr = Module.findExportByName(null, "fork");
         DMLog.i('anti_fork', "fork_addr : " + fork_addr);
         if (null != fork_addr) {
-            // Interceptor.attach(fork_addr, {
-            //     onEnter: function (args) {
-            //         DMLog.i('fork_addr', 'entry');
-            //     }
-            // });
-            Interceptor.replace(fork_addr, new NativeCallback(function () {
-                DMLog.i('fork_addr', 'entry');
-                return -1;
-            }, 'int', []));
+            if (type == 'replace'){
+                Interceptor.replace(fork_addr, new NativeCallback(function () {
+                    DMLog.i('fork_addr', 'entry');
+                    return -1;
+                }, 'int', []));
+            }else if(type == 'attach'){
+                Interceptor.attach(fork_addr, {
+                    onEnter: function (args) {
+                        DMLog.i('fork_addr', 'entry');
+                    }
+                });
+            }
         }
     }
 

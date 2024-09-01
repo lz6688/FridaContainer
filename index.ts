@@ -17,6 +17,12 @@ function main() {
     // and.anti.Anti.anti_fgets();
 
     // FCAnd.anti.anti_debug();
+    // FCAnd.hook_log();
+    // FCAnd.traceFopen();
+    // FCAnd.jni.hook_registNatives();
+    // FCAnd.getaddress("libFairGuard.so");
+    // FCAnd.anti.anti_dlopen();
+    FCAnd.anti.anti_init_array();
     /// dp
     // DianPing.anti_debug();
     // DianPing.hook_cx_stacks();
@@ -51,6 +57,7 @@ function main() {
     // }
 }
 
+// Java接口
 if (Java.available) {
     DMLog.i("JAVA", "available");
     Java.perform(function () {
@@ -58,6 +65,7 @@ if (Java.available) {
     });
 }
 
+// 苹果接口
 if (ObjC.available) {
     DMLog.i("ObjC", "available");
     FCCommon.printModules();

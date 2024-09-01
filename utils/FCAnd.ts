@@ -1,11 +1,13 @@
 /**
- * @author: xingjun.xyf
- * @contact: deathmemory@163.com
+ * @author: hacker
+ * @contact: 44071710@qq.com
  * @file: AntiDexLoader.js
  * @time: 2020/4/16 5:03 PM
  * @desc:
  */
 const fridaUnpack = require('./android/unpack/fridaUnpack');
+const yang_dumpdex = require('./android/yang/dump_dex');
+const yang_dumpdexclass = require('./android/yang/dump_dex_class');
 import {Anti} from "./android/Anti";
 import {Jni} from "./android/jnimgr";
 import {FCCommon} from "./FCCommon";
@@ -17,16 +19,25 @@ export namespace FCAnd {
     export const common = FCCommon;
     var firstdiscovery = false;
 
+    /**
+     * 获取堆栈信息
+     */
     export function getStacks() {
         return Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()) + "";
     }
 
+    /**
+     * 打印堆栈方法
+     */
     export function showStacks() {
         Java.perform(function () {
             DMLog.d('showStacks', getStacks());  // 打印堆栈
         });
     }
 
+    /**
+     * 钩住uri类,打印相关信息
+     */
     export function hook_uri(bShowStacks: boolean) {
         // android.net.Uri
         const Uri = Java.use('android.net.Uri');
@@ -39,6 +50,9 @@ export namespace FCAnd {
         }
     }
 
+    /**
+     * 钩住url类,打印相关信息
+     */
     export function hook_url(bShowStacks: boolean) {
         // java.net.URL;
         const URL = Java.use('java.net.URL');
@@ -167,6 +181,14 @@ export namespace FCAnd {
 
     export function dump_dex_common() {
         fridaUnpack.unpack_common();
+    }
+
+    export function yang_dump_dex() {
+        yang_dumpdex.dump_dex();
+    }
+
+    export function yang_dump_dex_class() {
+        yang_dumpdexclass.dump_dex_class();
     }
 
     /**
@@ -687,6 +709,16 @@ export namespace FCAnd {
             DMLog.e('registGson', 'exception, please try to run `setupAndorid.py`')
         }
 
+    }
+    
+    /** 
+     * 获取指定模块的基地址
+     * @param soname so名称
+    */
+    export function getaddress(soname:string){
+        // 获取指定模块的基地址
+        const address = Module.findBaseAddress(soname);
+        DMLog.i('getaddress',`name:${soname}----address:${address}`);   
     }
 
     /**
