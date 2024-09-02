@@ -1,3 +1,6 @@
+// 跟踪点击事件发生时，并获取被点击查看的真实VClass（很重要）。获取到了Class，你就可以在jadx找到这个View绑定事件代码。
+// 多一种办法定位到按键逻辑不好吗？要靠分析网络请求吗？条条大路通罗马，不一定非从网络库分析
+
 function methodInBeat(invokeId, timestamp, methodName, executor) {
 	var startTime = timestamp;
     var androidLogClz = Java.use("android.util.Log");
